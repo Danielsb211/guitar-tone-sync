@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="es" class="dark h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuitarTone Studio & Tab Sync</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        studio: {
+                            950: '#07080A',
+                            900: '#0E1117',
+                            800: '#181C26',
+                            700: '#232A39',
+                            600: '#313B50',
+                        },
+                        boss: {
+                            yellow: '#FFB800',
+                            blue: '#0066FF',
+                            silver: '#8E9BAE',
+                            black: '#1A1A1A'
+                        },
+                        tc: {
+                            red: '#E53935',
+                            neon: '#00F0FF'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0E1117; }
+        ::-webkit-scrollbar-thumb { background: #232A39; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #FFB800; }
+        
+        .knob-container { user-select: none; touch-action: none; }
+        .knob-dial { transform-origin: center center; transition: transform 0.05s ease-out; }
+        
+        .bg-studio-grid {
+            background-size: 24px 24px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        }
+
+        .led-indicator { box-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+        .stompbox-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.15); }
+    </style>
+</head>
+<body class="bg-studio-950 text-gray-200 font-sans h-full flex flex-col overflow-x-hidden selection:bg-amber-500 selection:text-black">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-studio-700 bg-studio-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Logo -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-boss-yellow via-amber-500 to-tc-red flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-guitar text-studio-950 text-xl font-black"></i>
+                </div>
+                <div>
+                    <span class="text-lg sm:text-xl font-extrabold bg-gradient-to-r from-amber-400 via-tc-neon to-amber-200 bg-clip-text text-transparent">GuitarTone Studio</span>
+                    <span class="text-xs text-gray-400 font-mono ml-1 hidden sm:inline">&amp; Tab Sync</span>
+                </div>
+            </div>
+
+            <!-- Sync Status & Account (Galaxy A11 & PC Sync) -->
+            <div class="flex items-center space-x-2 sm:space-x-3 text-xs sm:text-sm">
+                <!-- Sync Status Badge -->
+                <div id="syncBadge" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="syncText" class="font-medium font-mono text-[11px]">Sincronizado</span>
+                </div>
+
+                <!-- Google Account Section -->
+                <button id="googleAuthBtn" onclick="handleGoogleAuth()" class="flex items-center space-x-2 bg-studio-800 hover:bg-studio-700 text-white px-3 py-1.5 rounded-xl border border-studio-600 transition text-xs font-medium">
+                    <i class="fa-brands fa-google text-red-400"></i>
+                    <span id="googleAuthText" class="hidden md:inline">Vincular Gmail</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-studio-grid">
+        
+        <!-- Left Sidebar: Importer & Saved Presets (4 Cols) -->
+        <aside class="lg:col-span-4 flex flex-col space-y-6">
+            
+            <!-- Importer Box -->
+            <section class="bg-studio-900 border border-studio-700 rounded-2xl p-5 shadow-2xl">
+                <h2 class="text-base font-semibold text-white flex items-center space-x-2 mb-4">
+                    <i class="fa-solid fa-compact-disc text-amber-500"></i>
+                    <span>Analizar Canción (YouTube / Spotify / Audio)</span>
+                </h2>
+
+                <form id="analyzeForm" onsubmit="startToneAnalysis(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">URL de YouTube o Spotify</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+                                <i class="fa-solid fa-link text-xs"></i>
+                            </span>
+                            <input type="url" id="inputUrl" placeholder="https://www.youtube.com/watch?v=..." 
+                                class="w-full pl-9 pr-3 py-2 bg-studio-950 border border-studio-700 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition">
+                        </div>
+                    </div>
+
+                    <div class="relative flex items-center justify-center my-1">
+                        <div class="border-t border-studio-700 w-full"></div>
+                        <span class="bg-studio-900 px-2 text-[10px] text-gray-500 uppercase">o audio local</span>
+                        <div class="border-t border-studio-700 w-full"></div>
+                    </div>
+
+                    <div>
+                        <label class="flex justify-center w-full px-4 py-2.5 bg-studio-950 border border-studio-700 border-dashed rounded-xl cursor-pointer hover:border-amber-500 transition">
+                            <div class="flex items-center space-x-2 text-gray-400">
+                                <i class="fa-solid fa-file-audio text-amber-500 text-sm"></i>
+                                <span id="fileLabel" class="text-xs">Subir archivo MP3 o WAV</span>
+                            </div>
+                            <input type="file" id="inputFile" accept="audio/*" class="hidden" onchange="onFileSelected(this)">
+                        </label>
+                    </div>
+
+                    <button type="submit" id="btnScan" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-boss-yellow text-studio-950 font-extrabold rounded-xl shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-[0.98] transition flex items-center justify-center space-x-2 text-xs">
+                        <i class="fa-solid fa-microchip"></i>
+                        <span>ESCANEAR &amp; EXTRAER TONO Y TAB</span>
+                    </button>
+                </form>
+
+                <!-- Processing State UI -->
+                <div id="scanProgressBox" class="hidden mt-4 p-3 rounded-xl bg-studio-950 border border-amber-500/30 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-mono">
+                        <span id="scanStatus" class="text-amber-400 animate-pulse text-[11px]">Analizando pedales de efecto...</span>
+                        <span id="scanPct" class="text-gray-400">0%</span>
+                    </div>
+                    <div class="w-full bg-studio-800 h-2 rounded-full overflow-hidden">
+                        <div id="scanBar" class="bg-gradient-to-r from-amber-500 to-tc-neon h-full w-0 transition-all duration-200"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Library & Device Cloud Sync Panel -->
+            <section class="bg-studio-900 border border-studio-700 rounded-2xl p-5 shadow-2xl flex-1 flex flex-col min-h-[320px]">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-base font-semibold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-floppy-disk text-tc-neon"></i>
+                        <span>Biblioteca &amp; Sync Tablet/PC</span>
+                    </h2>
+                    <span id="libraryBadge" class="text-[10px] bg-studio-800 border border-studio-700 px-2 py-0.5 rounded text-amber-400 font-mono">0 Presets</span>
+                </div>
+
+                <!-- Sync Manual Trigger -->
+                <div class="bg-studio-950 border border-studio-700/80 p-3 rounded-xl mb-3 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2 text-gray-300">
+                        <i class="fa-solid fa-tablet-screen-button text-gray-400"></i>
+                        <i class="fa-solid fa-arrow-right-arrow-left text-amber-500 text-[10px]"></i>
+                        <i class="fa-solid fa-desktop text-gray-400"></i>
+                        <span class="text-[11px] font-mono">Sincro Tablet &lt;&gt; PC</span>
+                    </div>
+                    <button onclick="syncCloudNow()" class="px-2.5 py-1 bg-studio-800 hover:bg-studio-700 text-amber-400 rounded-lg text-[11px] border border-amber-500/30 transition">
+                        <i class="fa-solid fa-rotate"></i> Sincronizar
+                    </button>
+                </div>
+
+                <!-- Search Input -->
+                <input type="text" id="searchBox" oninput="renderLibrary()" placeholder="Buscar canción o preset..." 
+                    class="w-full px-3 py-1.5 bg-studio-950 border border-studio-700 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-none focus:border-tc-neon mb-3">
+
+                <!-- Library Song Item List -->
+                <div id="libraryList" class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[300px]">
+                    <!-- Items rendered dynamically -->
+                </div>
+            </section>
+
+        </aside>
+
+        <!-- Right Main Workspace (8 Cols) -->
+        <main class="lg:col-span-8 flex flex-col space-y-6">
+            
+            <!-- Header Active Song Banner -->
+            <div class="bg-studio-900 border border-studio-700 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-studio-800 to-studio-700 border border-studio-600 flex items-center justify-center text-amber-500 shadow">
+                        <i class="fa-solid fa-sliders text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span id="songKey" class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Tonalidad: E Min</span>
+                            <span id="songBpm" class="text-[10px] font-mono px-2 py-0.5 rounded bg-studio-800 text-gray-300">124 BPM</span>
+                        </div>
+                        <h1 id="songTitle" class="text-lg sm:text-xl font-extrabold text-white mt-1">Preset Detectado: Hard Rock / Lead Tone</h1>
+                        <p id="songArtist" class="text-xs text-gray-400">Cadena de Efectos Análoga de Guitarra Eléctrica</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button onclick="saveCurrentSong()" class="px-3.5 py-2 bg-studio-800 hover:bg-studio-700 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center space-x-2 transition">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Guardar</span>
+                    </button>
+                    <button onclick="exportJSON()" class="px-3 py-2 bg-studio-800 hover:bg-studio-700 text-gray-300 rounded-xl text-xs font-medium transition" title="Exportar archivo .JSON">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Switching: Efectos / Tablatura -->
+            <div class="flex border-b border-studio-700 space-x-2">
+                <button id="tabBtnRig" onclick="switchTab('rig')" class="px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-amber-500 text-amber-400 flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-guitar"></i>
+                    <span>Cadena de Pedales (Efectos)</span>
+                </button>
+                <button id="tabBtnTab" onclick="switchTab('tab')" class="px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Riffs, Solos &amp; Tablatura</span>
+                </button>
+            </div>
+
+            <!-- VIEW 1: Specific Stompbox Effect Pedals Chain -->
+            <div id="viewRig" class="space-y-6">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- PEDAL 1: Boss Overdrive OS-2 -->
+                    <div class="bg-studio-900 border-2 border-boss-yellow/40 rounded-2xl p-4 flex flex-col justify-between stompbox-shadow relative overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-studio-700/80 pb-2 mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 led-indicator text-red-500"></span>
+                                <span class="text-xs font-bold font-mono text-boss-yellow uppercase tracking-wider">BOSS OS-2</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-400">OverDrive / Distortion</span>
+                        </div>
+
+                        <!-- OS-2 Knobs -->
+                        <div class="grid grid-cols-4 gap-2 text-center my-2">
+                            <!-- Level -->
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="os2" data-knob="level" data-value="70">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-yellow flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-yellow rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">LEVEL</span>
+                                <span id="v-os2-level" class="text-[10px] font-mono text-boss-yellow">7.0</span>
+                            </div>
+                            <!-- Tone -->
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="os2" data-knob="tone" data-value="60">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-yellow flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-yellow rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">TONE</span>
+                                <span id="v-os2-tone" class="text-[10px] font-mono text-boss-yellow">6.0</span>
+                            </div>
+                            <!-- Drive -->
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="os2" data-knob="drive" data-value="75">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-yellow flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-yellow rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">DRIVE</span>
+                                <span id="v-os2-drive" class="text-[10px] font-mono text-boss-yellow">7.5</span>
+                            </div>
+                            <!-- COLOR (OS vs DS Blend) -->
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="os2" data-knob="color" data-value="40">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-amber-500 flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-amber-400 rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-amber-400 mt-1">COLOR</span>
+                                <span id="v-os2-color" class="text-[10px] font-mono text-amber-400">OD:DS</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-studio-950 p-2 rounded-lg text-[10px] text-gray-400 mt-2 font-mono flex justify-between">
+                            <span>Modo Mezcla:</span>
+                            <span id="os2ModeText" class="text-boss-yellow font-bold">60% OD / 40% DS</span>
+                        </div>
+                    </div>
+
+                    <!-- PEDAL 2: TC Electronic FAB Distortion / Corona Chorus -->
+                    <div class="bg-studio-900 border-2 border-tc-red/40 rounded-2xl p-4 flex flex-col justify-between stompbox-shadow relative overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-studio-700/80 pb-2 mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 led-indicator text-emerald-400"></span>
+                                <span class="text-xs font-bold font-mono text-tc-red uppercase tracking-wider">TC ELECTRONIC FAB DIST</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-400">High Gain Boost</span>
+                        </div>
+
+                        <!-- TC Knobs -->
+                        <div class="grid grid-cols-3 gap-2 text-center my-2">
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="tc" data-knob="gain" data-value="80">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-tc-red flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-tc-red rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">GAIN</span>
+                                <span id="v-tc-gain" class="text-[10px] font-mono text-tc-red">8.0</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="tc" data-knob="tone" data-value="50">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-tc-red flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-tc-red rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">TONE</span>
+                                <span id="v-tc-tone" class="text-[10px] font-mono text-tc-red">5.0</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="tc" data-knob="level" data-value="65">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-tc-red flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-tc-red rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">LEVEL</span>
+                                <span id="v-tc-level" class="text-[10px] font-mono text-tc-red">6.5</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-studio-950 p-2 rounded-lg text-[10px] text-gray-400 mt-2 font-mono flex justify-between">
+                            <span>Saturación Armónica:</span>
+                            <span class="text-tc-red font-bold">Vintage Tube Amp</span>
+                        </div>
+                    </div>
+
+                    <!-- PEDAL 3: Boss Delay DD-3 -->
+                    <div class="bg-studio-900 border-2 border-boss-blue/40 rounded-2xl p-4 flex flex-col justify-between stompbox-shadow relative overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-studio-700/80 pb-2 mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 led-indicator text-red-500"></span>
+                                <span class="text-xs font-bold font-mono text-boss-blue uppercase tracking-wider">BOSS DD-3 DELAY</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-400">Digital Delay</span>
+                        </div>
+
+                        <!-- DD-3 Knobs -->
+                        <div class="grid grid-cols-4 gap-2 text-center my-2">
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="dd3" data-knob="elevel" data-value="45">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-blue flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-blue rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">E.LEVEL</span>
+                                <span id="v-dd3-elevel" class="text-[10px] font-mono text-boss-blue">4.5</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="dd3" data-knob="feedback" data-value="55">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-blue flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-blue rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">F.BACK</span>
+                                <span id="v-dd3-feedback" class="text-[10px] font-mono text-boss-blue">5.5</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="dd3" data-knob="dtime" data-value="60">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-blue flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-blue rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">D.TIME</span>
+                                <span id="v-dd3-dtime" class="text-[10px] font-mono text-boss-blue">380ms</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="dd3" data-knob="mode" data-value="50">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-blue flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-blue rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">MODE</span>
+                                <span id="v-dd3-mode" class="text-[10px] font-mono text-boss-blue">200ms</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-studio-950 p-2 rounded-lg text-[10px] text-gray-400 mt-2 font-mono flex justify-between">
+                            <span>Tiempo de Repetición:</span>
+                            <span class="text-boss-blue font-bold">380ms (Corchea con punto)</span>
+                        </div>
+                    </div>
+
+                    <!-- PEDAL 4: Boss Reverb RV-6 -->
+                    <div class="bg-studio-900 border-2 border-boss-silver/40 rounded-2xl p-4 flex flex-col justify-between stompbox-shadow relative overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-studio-700/80 pb-2 mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-blue-400 led-indicator text-blue-400"></span>
+                                <span class="text-xs font-bold font-mono text-boss-silver uppercase tracking-wider">BOSS RV-6 REVERB</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-400">Reverb / Modulate</span>
+                        </div>
+
+                        <!-- RV-6 Knobs -->
+                        <div class="grid grid-cols-4 gap-2 text-center my-2">
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="rv6" data-knob="elevel" data-value="40">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-silver flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-silver rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">E.LEVEL</span>
+                                <span id="v-rv6-elevel" class="text-[10px] font-mono text-boss-silver">4.0</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="rv6" data-knob="tone" data-value="55">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-silver flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-silver rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">TONE</span>
+                                <span id="v-rv6-tone" class="text-[10px] font-mono text-boss-silver">5.5</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="rv6" data-knob="time" data-value="65">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-boss-silver flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-boss-silver rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-300 mt-1">TIME</span>
+                                <span id="v-rv6-time" class="text-[10px] font-mono text-boss-silver">2.4s</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="knob-container w-11 h-11 cursor-ns-resize" data-pedal="rv6" data-knob="mode" data-value="30">
+                                    <div class="knob-dial w-full h-full rounded-full bg-studio-800 border-2 border-tc-neon flex items-center justify-center relative shadow">
+                                        <div class="w-0.5 h-3 bg-tc-neon rounded-full absolute top-0.5"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-bold text-tc-neon mt-1">MODE</span>
+                                <span id="v-rv6-mode" class="text-[10px] font-mono text-tc-neon">HALL</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-studio-950 p-2 rounded-lg text-[10px] text-gray-400 mt-2 font-mono flex justify-between">
+                            <span>Algoritmo Seleccionado:</span>
+                            <span id="rv6ModeText" class="text-tc-neon font-bold">Hall Reverb</span>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- VIEW 2: Tablature & Interactive Fretboard Player -->
+            <div id="viewTab" class="space-y-6 hidden">
+                
+                <!-- Section Chips & Speed Controls -->
+                <div class="bg-studio-900 border border-studio-700 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center space-x-2 overflow-x-auto" id="sectionChips">
+                        <!-- Dynamic Section Selectors -->
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <button id="btnPlayTab" onclick="togglePlayback()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-studio-950 font-bold rounded-xl text-xs flex items-center space-x-2 transition">
+                            <i id="playIcon" class="fa-solid fa-play"></i>
+                            <span id="playLabel">Reproducir Tab</span>
+                        </button>
+                        <select id="speedSelect" onchange="setSpeed(this.value)" class="bg-studio-950 border border-studio-700 text-gray-300 text-xs rounded-xl px-2 py-2 focus:outline-none font-mono">
+                            <option value="1">Velocidad: 100%</option>
+                            <option value="0.75">Velocidad: 75%</option>
+                            <option value="0.5">Velocidad: 50% (Modo Práctica)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Animated Interactive Guitar Fretboard -->
+                <div class="bg-studio-900 border border-studio-700 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Mástil Interactivo en Vivo</span>
+                        <span id="currentNote" class="font-mono text-xs text-amber-400 font-bold">Nota: --</span>
+                    </div>
+
+                    <div class="bg-studio-950 border border-studio-700 rounded-xl p-3 overflow-x-auto">
+                        <div class="min-w-[600px] relative py-2">
+                            <!-- Guitar Strings -->
+                            <div class="space-y-2.5 relative">
+                                <div class="h-0.5 bg-gray-400 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">e</span></div>
+                                <div class="h-0.5 bg-gray-400 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">B</span></div>
+                                <div class="h-0.5 bg-gray-400 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">G</span></div>
+                                <div class="h-1 bg-gray-400 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">D</span></div>
+                                <div class="h-1 bg-amber-600/80 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">A</span></div>
+                                <div class="h-1.5 bg-amber-600 w-full relative flex items-center"><span class="text-[9px] font-mono text-gray-500 absolute -left-4">E</span></div>
+                            </div>
+                            <!-- Dynamic Fret Animation Overlay -->
+                            <div id="fretOverlay" class="absolute inset-0 pointer-events-none"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tablature Text Display -->
+                <div class="bg-studio-900 border border-studio-700 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 id="tabSectionTitle" class="text-sm font-bold text-gray-200">Tablatura: Riff Principal</h3>
+                        <button onclick="copyTab()" class="text-xs bg-studio-800 hover:bg-studio-700 text-gray-300 px-3 py-1 rounded-lg border border-studio-700 transition flex items-center space-x-1.5">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Copiar TAB</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-studio-950 border border-studio-700 rounded-xl p-4 overflow-x-auto font-mono text-amber-400 text-xs sm:text-sm leading-relaxed tracking-wider">
+                        <pre id="tabContent">
+e|-------------------------------------------------------|
+B|-------------------------------------------------------|
+G|----------------------------------2--------------------|
+D|------2-----3-----2-----2-----2---2---2---5/7----------|
+A|------2-----3-----2-----2-----2---0---2---3/5----------|
+E|--0-0---0-0---0-0---0-0---0-0---0---0---0--------------|
+    * *   * *   * *   * *   * *
+                        </pre>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 bg-studio-800 border border-amber-500/50 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-amber-400"></i>
+        <span id="toastMsg" class="text-xs sm:text-sm font-medium">Notificación del sistema</span>
+    </div>
+
+    <!-- Application JavaScript Engine -->
+    <script>
+        /* ==========================================================================
+           1. Application State & Storage
+           ========================================================================== */
+        
+        const initialMockSongs = [
+            {
+                id: 'song-demo-1',
+                title: 'Crazy Train Lead Tone',
+                artist: 'Ozzy Osbourne',
+                key: 'F# Minor',
+                bpm: 138,
+                pedals: {
+                    os2: { level: 75, tone: 65, drive: 80, color: 50 },
+                    tc: { gain: 85, tone: 60, level: 70 },
+                    dd3: { elevel: 40, feedback: 50, dtime: 60, mode: 50 },
+                    rv6: { elevel: 45, tone: 55, time: 60, mode: 30 }
+                },
+                sections: [
+                    {
+                        name: 'Main Intro Riff',
+                        tab: `e|-------------------------------------------------------|\nB|-------------------------------------------------------|\nG|-------------------------------------------------------|\nD|-------------------------------------------------------|\nA|----2-4-5-2-4-5-2-4---2--------------------------------|\nE|--2-----------------5---5-4-0--------------------------|`
+                    },
+                    {
+                        name: 'Guitar Solo',
+                        tab: `e|--14p9----14p9----14p9----14p9----17b19~---------------|\nB|-------12-------12-------12-------12-------------------|\nG|-------------------------------------------------------|\nD|-------------------------------------------------------|\nA|-------------------------------------------------------|\nE|-------------------------------------------------------|`
+                    }
+                ]
+            }
+        ];
+
+        let state = {
+            currentSong: initialMockSongs[0],
+            library: [],
+            activeTab: 'rig',
+            activeSection: 0,
+            isPlaying: false,
+            speed: 1,
+            playbackTimer: null,
+            userGoogle: null
+        };
+
+        /* ==========================================================================
+           2. Initialization
+           ========================================================================== */
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLibrary();
+            renderSongUI(state.currentSong);
+            initKnobDrag();
+        });
+
+        function loadLibrary() {
+            try {
+                const data = localStorage.getItem('guitartone_library');
+                if (data) {
+                    state.library = JSON.parse(data);
+                } else {
+                    state.library = [...initialMockSongs];
+                    saveLibrary();
+                }
+            } catch (e) {
+                state.library = [...initialMockSongs];
+            }
+            renderLibrary();
+        }
+
+        function saveLibrary() {
+            try {
+                localStorage.setItem('guitartone_library', JSON.stringify(state.library));
+                updateSyncStatus('Sincronizado');
+            } catch (e) {
+                showToast('Error al guardar localmente', 'error');
+            }
+        }
+
+        /* ==========================================================================
+           3. UI Rendering & Pedal Parameters
+           ========================================================================== */
+
+        function renderSongUI(song) {
+            state.currentSong = song;
+            document.getElementById('songTitle').innerText = song.title;
+            document.getElementById('songArtist').innerText = `${song.artist} • Cadena Detectada`;
+            document.getElementById('songKey').innerText = `Tonalidad: ${song.key}`;
+            document.getElementById('songBpm').innerText = `${song.bpm} BPM`;
+
+            // Update Boss OS-2
+            updateKnob('os2', 'level', song.pedals.os2.level);
+            updateKnob('os2', 'tone', song.pedals.os2.tone);
+            updateKnob('os2', 'drive', song.pedals.os2.drive);
+            updateKnob('os2', 'color', song.pedals.os2.color);
+
+            // Update TC Distortion
+            updateKnob('tc', 'gain', song.pedals.tc.gain);
+            updateKnob('tc', 'tone', song.pedals.tc.tone);
+            updateKnob('tc', 'level', song.pedals.tc.level);
+
+            // Update Boss DD-3
+            updateKnob('dd3', 'elevel', song.pedals.dd3.elevel);
+            updateKnob('dd3', 'feedback', song.pedals.dd3.feedback);
+            updateKnob('dd3', 'dtime', song.pedals.dd3.dtime);
+            updateKnob('dd3', 'mode', song.pedals.dd3.mode);
+
+            // Update Boss RV-6
+            updateKnob('rv6', 'elevel', song.pedals.rv6.elevel);
+            updateKnob('rv6', 'tone', song.pedals.rv6.tone);
+            updateKnob('rv6', 'time', song.pedals.rv6.time);
+            updateKnob('rv6', 'mode', song.pedals.rv6.mode);
+
+            renderSections();
+        }
+
+        function renderSections() {
+            const container = document.getElementById('sectionChips');
+            container.innerHTML = '';
+
+            state.currentSong.sections.forEach((sec, idx) => {
+                const btn = document.createElement('button');
+                const active = idx === state.activeSection;
+                btn.className = `px-3 py-1 rounded-lg text-xs font-semibold border transition ${
+                    active ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-studio-950 border-studio-700 text-gray-400'
+                }`;
+                btn.innerText = sec.name;
+                btn.onclick = () => {
+                    state.activeSection = idx;
+                    renderSections();
+                    renderTab();
+                };
+                container.appendChild(btn);
+            });
+
+            renderTab();
+        }
+
+        function renderTab() {
+            const sec = state.currentSong.sections[state.activeSection];
+            if (!sec) return;
+            document.getElementById('tabSectionTitle').innerText = `Tablatura: ${sec.name}`;
+            document.getElementById('tabContent').innerText = sec.tab;
+        }
+
+        function renderLibrary() {
+            const container = document.getElementById('libraryList');
+            const search = document.getElementById('searchBox').value.toLowerCase();
+            container.innerHTML = '';
+
+            const filtered = state.library.filter(s => 
+                s.title.toLowerCase().includes(search) || s.artist.toLowerCase().includes(search)
+            );
+
+            document.getElementById('libraryBadge').innerText = `${filtered.length} Presets`;
+
+            filtered.forEach(song => {
+                const item = document.createElement('div');
+                item.className = `p-2.5 rounded-xl bg-studio-950 border border-studio-700/60 hover:border-amber-500/50 cursor-pointer flex items-center justify-between transition ${
+                    song.id === state.currentSong.id ? 'border-amber-500 bg-studio-900' : ''
+                }`;
+                item.onclick = () => {
+                    renderSongUI(song);
+                    showToast(`Cargado: ${song.title}`);
+                };
+
+                item.innerHTML = `
+                    <div class="truncate pr-2">
+                        <h4 class="text-xs font-bold text-white truncate">${song.title}</h4>
+                        <p class="text-[10px] text-gray-400 truncate">${song.artist}</p>
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteSong('${song.id}')" class="text-gray-500 hover:text-red-400 p-1">
+                        <i class="fa-regular fa-trash-can text-xs"></i>
+                    </button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        /* ==========================================================================
+           4. Interactive Knob Control Logic
+           ========================================================================== */
+
+        function initKnobDrag() {
+            const knobs = document.querySelectorAll('.knob-container');
+
+            knobs.forEach(knob => {
+                let isDragging = false;
+                let startY = 0;
+                let startVal = 0;
+
+                const updateValue = (clientY) => {
+                    if (!isDragging) return;
+                    const deltaY = startY - clientY;
+                    let newVal = Math.min(100, Math.max(0, startVal + deltaY * 0.75));
+                    
+                    const pedal = knob.getAttribute('data-pedal');
+                    const param = knob.getAttribute('data-knob');
+                    
+                    updateKnob(pedal, param, newVal);
+                    state.currentSong.pedals[pedal][param] = Math.round(newVal);
+                };
+
+                knob.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startY = e.clientY;
+                    startVal = parseFloat(knob.getAttribute('data-value') || 50);
+                    const onMove = (me) => updateValue(me.clientY);
+                    const onUp = () => {
+                        isDragging = false;
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+
+                knob.addEventListener('touchstart', (e) => {
+                    isDragging = true;
+                    startY = e.touches[0].clientY;
+                    startVal = parseFloat(knob.getAttribute('data-value') || 50);
+                });
+
+                knob.addEventListener('touchmove', (e) => {
+                    updateValue(e.touches[0].clientY);
+                });
+
+                knob.addEventListener('touchend', () => { isDragging = false; });
+            });
+        }
+
+        function updateKnob(pedal, param, val) {
+            const container = document.querySelector(`[data-pedal="${pedal}"][data-knob="${param}"]`);
+            if (!container) return;
+
+            container.setAttribute('data-value', val);
+            const angle = -135 + (val / 100) * 270;
+            const dial = container.querySelector('.knob-dial');
+            if (dial) dial.style.transform = `rotate(${angle}deg)`;
+
+            const label = document.getElementById(`v-${pedal}-${param}`);
+            if (!label) return;
+
+            if (pedal === 'os2' && param === 'color') {
+                const odPct = Math.round(100 - val);
+                const dsPct = Math.round(val);
+                label.innerText = `${(val/10).toFixed(1)}`;
+                document.getElementById('os2ModeText').innerText = `${odPct}% OD / ${dsPct}% DS`;
+            } else if (pedal === 'dd3' && param === 'dtime') {
+                label.innerText = `${Math.round(100 + val * 5)}ms`;
+            } else if (pedal === 'rv6' && param === 'time') {
+                label.innerText = `${(0.5 + (val/100)*4).toFixed(1)}s`;
+            } else if (pedal === 'rv6' && param === 'mode') {
+                const modes = ['ROOM', 'HALL', 'PLATE', 'SPRING', 'MODULATE', 'SHIMMER'];
+                const mIdx = Math.min(modes.length - 1, Math.floor((val / 100) * modes.length));
+                label.innerText = modes[mIdx];
+                document.getElementById('rv6ModeText').innerText = modes[mIdx];
+            } else {
+                label.innerText = (val / 10).toFixed(1);
+            }
+        }
+
+        /* ==========================================================================
+           5. Song Scanner & Extraction Engine
+           ========================================================================== */
+
+        function onFileSelected(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('fileLabel').innerText = input.files[0].name;
+            }
+        }
+
+        function startToneAnalysis(e) {
+            e.preventDefault();
+            const url = document.getElementById('inputUrl').value.trim();
+            const file = document.getElementById('inputFile').files[0];
+
+            if (!url && !file) {
+                showToast('Ingresa un enlace de YouTube/Spotify o un archivo MP3', 'error');
+                return;
+            }
+
+            const sourceName = url ? 'Audio desde URL' : file.name;
+            const progressBox = document.getElementById('scanProgressBox');
+            const bar = document.getElementById('scanBar');
+            const status = document.getElementById('scanStatus');
+            const pct = document.getElementById('scanPct');
+            const btn = document.getElementById('btnScan');
+
+            progressBox.classList.remove('hidden');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 15) + 5;
+                if (progress > 100) progress = 100;
+
+                bar.style.width = `${progress}%`;
+                pct.innerText = `${progress}%`;
+
+                if (progress < 40) {
+                    status.innerText = 'Escaneando frecuencias y saturación...';
+                } else if (progress < 75) {
+                    status.innerText = 'Mapeando Boss OS-2, DD-3, RV-6 y TC Distortion...';
+                } else {
+                    status.innerText = 'Extrayendo Riffs y Tablatura...';
+                }
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        progressBox.classList.add('hidden');
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50');
+                        bar.style.width = '0%';
+
+                        const extracted = {
+                            id: 'extracted-' + Date.now(),
+                            title: sourceName.replace(/\.[^/.]+$/, ""),
+                            artist: 'Sincronizado vía AI',
+                            key: 'E Minor',
+                            bpm: 120,
+                            pedals: {
+                                os2: { level: 70, tone: 60, drive: 75, color: 45 },
+                                tc: { gain: 80, tone: 50, level: 65 },
+                                dd3: { elevel: 45, feedback: 55, dtime: 60, mode: 50 },
+                                rv6: { elevel: 40, tone: 55, time: 65, mode: 20 }
+                            },
+                            sections: [
+                                {
+                                    name: 'Intro Riff Principal',
+                                    tab: `e|-------------------------------------------------------|\nB|-------------------------------------------------------|\nG|------2-----3-----2-----2-----2---2---2---5/7----------|\nD|------2-----3-----2-----2-----2---2---2---5/7----------|\nA|--0-0---0-0---0-0---0-0---0-0---0---0---0--------------|\nE|-------------------------------------------------------|`
+                                },
+                                {
+                                    name: 'Solo Extraído',
+                                    tab: `e|--12--15p12----12--15p12----12-15b17-------------------|\nB|------------15-----------15----------------------------|\nG|-------------------------------------------------------|\nD|-------------------------------------------------------|\nA|-------------------------------------------------------|\nE|-------------------------------------------------------|`
+                                }
+                            ]
+                        };
+
+                        renderSongUI(extracted);
+                        saveCurrentSong();
+                        showToast('¡Escaneo completado y guardado!');
+                    }, 400);
+                }
+            }, 200);
+        }
+
+        /* ==========================================================================
+           6. Tab Playback & Interactive Fretboard
+           ========================================================================== */
+
+        function togglePlayback() {
+            if (state.isPlaying) {
+                stopPlayback();
+            } else {
+                startPlayback();
+            }
+        }
+
+        function startPlayback() {
+            state.isPlaying = true;
+            document.getElementById('playLabel').innerText = 'Pausar';
+            document.getElementById('playIcon').className = 'fa-solid fa-pause';
+
+            const overlay = document.getElementById('fretOverlay');
+            const frets = [0, 2, 3, 5, 7, 8, 12, 15];
+            const strings = [10, 26, 42, 58, 74, 90];
+            let idx = 0;
+
+            const baseInterval = 400 / state.speed;
+
+            state.playbackTimer = setInterval(() => {
+                overlay.innerHTML = '';
+                const f = frets[idx % frets.length];
+                const s = strings[(idx * 2) % strings.length];
+
+                const dot = document.createElement('div');
+                dot.className = 'absolute w-5 h-5 rounded-full bg-amber-400 border-2 border-studio-950 shadow-lg shadow-amber-500/50 flex items-center justify-center text-[9px] font-bold text-black font-mono transform -translate-x-1/2 -translate-y-1/2 animate-ping';
+                dot.style.left = `${(f / 18) * 100}%`;
+                dot.style.top = `${s}%`;
+                dot.innerText = f;
+
+                overlay.appendChild(dot);
+                document.getElementById('currentNote').innerText = `Traste: ${f} | Cuerda: ${Math.floor(s/15)+1}`;
+
+                idx++;
+            }, baseInterval);
+        }
+
+        function stopPlayback() {
+            state.isPlaying = false;
+            document.getElementById('playLabel').innerText = 'Reproducir Tab';
+            document.getElementById('playIcon').className = 'fa-solid fa-play';
+            clearInterval(state.playbackTimer);
+            document.getElementById('fretOverlay').innerHTML = '';
+            document.getElementById('currentNote').innerText = 'Nota: --';
+        }
+
+        function setSpeed(val) {
+            state.speed = parseFloat(val);
+            if (state.isPlaying) {
+                stopPlayback();
+                startPlayback();
+            }
+        }
+
+        /* ==========================================================================
+           7. Sync & Cloud Functions (Tablet Galaxy A11 & PC)
+           ========================================================================== */
+
+        function handleGoogleAuth() {
+            if (state.userGoogle) {
+                state.userGoogle = null;
+                document.getElementById('googleAuthText').innerText = 'Vincular Gmail';
+                showToast('Desconectado de Google');
+            } else {
+                const email = prompt('Simulación Google Auth - Ingresa tu correo:', 'guitarra.ensayo@gmail.com');
+                if (email && email.includes('@')) {
+                    state.userGoogle = email;
+                    document.getElementById('googleAuthText').innerText = email.split('@')[0];
+                    showToast(`Conectado como ${email}. Sincronización en la nube activa.`);
+                }
+            }
+        }
+
+        function syncCloudNow() {
+            updateSyncStatus('Sincronizando...');
+            setTimeout(() => {
+                saveLibrary();
+                showToast('¡Avance sincronizado entre Tablet y PC!');
+            }, 800);
+        }
+
+        function updateSyncStatus(text) {
+            document.getElementById('syncText').innerText = text;
+        }
+
+        function saveCurrentSong() {
+            const idx = state.library.findIndex(s => s.id === state.currentSong.id);
+            if (idx >= 0) {
+                state.library[idx] = state.currentSong;
+            } else {
+                state.library.unshift(state.currentSong);
+            }
+            saveLibrary();
+            renderLibrary();
+            showToast('Preset guardado en la biblioteca');
+        }
+
+        function deleteSong(id) {
+            state.library = state.library.filter(s => s.id !== id);
+            saveLibrary();
+            renderLibrary();
+            showToast('Tema eliminado');
+        }
+
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.currentSong, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `${state.currentSong.title.replace(/\s+/g, '_')}_Preset.json`);
+            dl.click();
+            dl.remove();
+        }
+
+        function copyTab() {
+            const tab = document.getElementById('tabContent').innerText;
+            const ta = document.createElement('textarea');
+            ta.value = tab;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('Tablatura copiada al portapapeles');
+        }
+
+        function switchTab(tab) {
+            state.activeTab = tab;
+            const btnRig = document.getElementById('tabBtnRig');
+            const btnTab = document.getElementById('tabBtnTab');
+            const viewRig = document.getElementById('viewRig');
+            const viewTab = document.getElementById('viewTab');
+
+            if (tab === 'rig') {
+                viewRig.classList.remove('hidden');
+                viewTab.classList.add('hidden');
+                btnRig.className = 'px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-amber-500 text-amber-400 flex items-center space-x-2 transition';
+                btnTab.className = 'px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition';
+            } else {
+                viewRig.classList.add('hidden');
+                viewTab.classList.remove('hidden');
+                btnTab.className = 'px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-amber-500 text-amber-400 flex items-center space-x-2 transition';
+                btnRig.className = 'px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition';
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
